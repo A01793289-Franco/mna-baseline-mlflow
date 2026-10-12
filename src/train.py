@@ -15,6 +15,7 @@ import mlflow
 import mlflow.sklearn
 from dotenv import load_dotenv
 import os
+import argparse
 
 
 #==================================================================================
@@ -28,6 +29,20 @@ mlflow.set_tracking_uri("http://127.0.0.1:5000")
 
 # Crear o utilizar el experimento donde se registrarán las corridas
 mlflow.set_experiment("Titanic-RandomForest")
+
+
+#==================================================================================
+#ARGUMENTOS DE LINEA DE COMANDOS
+#==================================================================================
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument("--n_estimators", type=int, default=200)
+parser.add_argument("--max_depth", type=int, default=8)
+parser.add_argument("--min_samples_split", type=int, default=5)
+parser.add_argument("--random_state", type=int, default=42)
+
+args = parser.parse_args()
 
 
 #==================================================================================
@@ -75,8 +90,12 @@ y = df_model['Survived']
 #==================================================================================
 
 #Dividir en train/test
-mlflow.sklearn.autolog()
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    test_size=0.2,
+    random_state=args.random_state
+)
 
 
 #==================================================================================
@@ -86,16 +105,27 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 # Iniciar una nueva corrida en MLflow
 mlflow.start_run(run_name="RandomForest")
 
+mlflow.log_param("n_estimators", args.n_estimators)
+mlflow.log_param("max_depth", args.max_depth)
+mlflow.log_param("min_samples_split", args.min_samples_split)
+mlflow.log_param("random_state", args.random_state)
+
 model = RandomForestClassifier(
-    n_estimators=200,
-    max_depth=8,
-    min_samples_split=5,
+    n_estimators=args.n_estimators,
+    max_depth=args.max_depth,
+    min_samples_split=args.min_samples_split,
     min_samples_leaf=2,
-    random_state=42
+    random_state=args.random_state
 )
 
 # Entrenar el modelo utilizando el conjunto de entrenamiento
 model.fit(X_train, y_train)
+
+mlflow.sklearn.log_model(
+    sk_model=model,
+    artifact_path="model",
+    serialization_format="pickle"
+)
 
 
 #==================================================================================
@@ -116,11 +146,15 @@ precision = precision_score(y_test, y_pred)
 recall = recall_score(y_test, y_pred)
 f1 = f1_score(y_test, y_pred)
 
+mlflow.log_metric("accuracy", accuracy)
+mlflow.log_metric("precision", precision)
+mlflow.log_metric("recall", recall)
+mlflow.log_metric("f1_score", f1)
+
 print(f"Accuracy : {accuracy:.4f}")
 print(f"Precision: {precision:.4f}")
 print(f"Recall   : {recall:.4f}")
 print(f"F1 Score : {f1:.4f}")
-mlflow.end_run()
 
 
 #==================================================================================
@@ -135,9 +169,13 @@ sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
 plt.title('Matriz de Confusión')
 plt.xlabel('Predicción')
 plt.ylabel('Real')
+plt.savefig("confusion_matrix.png")
+mlflow.log_artifact("confusion_matrix.png")
+
 plt.show()
 
 # Mostrar métricas detalladas por clase
 print(classification_report(y_test, y_pred))
 
 print("Entrenamiento completado correctamente.")
+mlflow.end_run()
