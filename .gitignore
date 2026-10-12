@@ -13,3 +13,4 @@ __pycache__/
 
 .*scode/
 .DS_Store
+*.png
